@@ -4,6 +4,7 @@
 import React, { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { apiFetch } from '../../lib/api'
+import { loadNzfNamesOnce, NZF_NAMES } from '../../lib/nzfLoader'
 
 const NAVY = '#0D2B45'
 const TEAL = '#0B6E76'
@@ -15,6 +16,13 @@ export default function AdminPSO() {
   const [selectedOrgId, setSelectedOrgId] = useState('')
   const [mode, setMode] = useState('pso')
   const [err, setErr] = useState('')
+  // When a user clicks "Re-issue" on a past PSO/SO in the History list we
+  // hand the full row down to the relevant form as a prefill payload. The
+  // form overwrites its state from it so the admin can edit any field
+  // before re-issuing. One payload at a time; switching mode also clears
+  // the other kind's prefill so stale state can't leak across tabs.
+  const [prefillPso, setPrefillPso] = useState(null)
+  const [prefillSo,  setPrefillSo]  = useState(null)
 
   const load = useCallback(async () => {
     try {
@@ -74,16 +82,21 @@ export default function AdminPSO() {
                     </div>
                   </div>
                   <div style={{ display: 'flex', gap: '.4rem' }}>
-                    <TabBtn active={mode === 'pso'} onClick={() => setMode('pso')}>Issue PSO</TabBtn>
-                    <TabBtn active={mode === 'so'}  onClick={() => setMode('so')}>Issue Standing Order</TabBtn>
+                    <TabBtn active={mode === 'pso'} onClick={() => { setMode('pso'); setPrefillSo(null) }}>Issue PSO</TabBtn>
+                    <TabBtn active={mode === 'so'}  onClick={() => { setMode('so');  setPrefillPso(null) }}>Issue Standing Order</TabBtn>
                   </div>
                 </div>
               </div>
 
-              {mode === 'pso' && <PsoForm org={org} onDone={load} />}
-              {mode === 'so'  && <StandingOrderForm org={org} psos={orgPsos} onDone={load} />}
+              {mode === 'pso' && <PsoForm org={org} onDone={() => { setPrefillPso(null); load() }} prefill={prefillPso} />}
+              {mode === 'so'  && <StandingOrderForm org={org} psos={orgPsos} onDone={() => { setPrefillSo(null); load() }} prefill={prefillSo} />}
 
-              <History psos={orgPsos} sos={orgSos} />
+              <History
+                psos={orgPsos}
+                sos={orgSos}
+                onReissuePso={p => { setPrefillPso(p); setMode('pso'); window.scrollTo({ top: 0, behavior: 'smooth' }) }}
+                onReissueSo={s  => { setPrefillSo(s);  setMode('so');  window.scrollTo({ top: 0, behavior: 'smooth' }) }}
+              />
             </>
           ) : (
             <div style={{ padding: '2rem', color: '#6B7280', fontSize: '.875rem' }}>Select or create an organisation.</div>
@@ -158,18 +171,88 @@ function NewOrgForm({ onDone, onCancel }) {
   )
 }
 
-function PsoForm({ org, onDone }) {
+// Common emergency-medicine presets so admin doesn't retype four fields
+// per item. Picked for the kinds of orgs Tere acts as Medical Director
+// for (outdoor ed, schools, aged care, remote worksites). Click a chip
+// → appends an item row with the fields pre-filled; admin edits quantity.
+const MEDICINE_PRESETS = [
+  { label: 'Salbutamol MDI',       name: 'Salbutamol sulphate',  strength: '100 mcg per actuation', form: 'Metered-dose inhaler (MDI)', quantity: '10 inhalers' },
+  { label: 'Spacer (Volumatic)',   name: 'Spacer device (Volumatic or equivalent)', strength: '—', form: 'Spacer',                    quantity: '5 spacers'   },
+  { label: 'EpiPen (adult)',       name: 'Adrenaline auto-injector (EpiPen)',       strength: '300 mcg', form: 'IM auto-injector',        quantity: '2 pens' },
+  { label: 'EpiPen Jr (paed)',     name: 'Adrenaline auto-injector (EpiPen Jr)',    strength: '150 mcg', form: 'IM auto-injector',        quantity: '2 pens' },
+  { label: 'Paracetamol 500mg',    name: 'Paracetamol',          strength: '500 mg',               form: 'Oral tablet',                quantity: '100 tablets' },
+  { label: 'Ibuprofen 200mg',      name: 'Ibuprofen',            strength: '200 mg',               form: 'Oral tablet',                quantity: '100 tablets' },
+  { label: 'Hydrocortisone 1%',    name: 'Hydrocortisone',       strength: '1%',                   form: 'Topical cream',              quantity: '2 tubes (30g)' },
+  { label: 'Loratadine 10mg',      name: 'Loratadine',           strength: '10 mg',                form: 'Oral tablet',                quantity: '30 tablets' },
+  { label: 'Ondansetron 4mg',      name: 'Ondansetron',          strength: '4 mg',                 form: 'Oral wafer',                 quantity: '10 wafers' },
+  { label: 'Chlorhexidine 0.05%',  name: 'Chlorhexidine',        strength: '0.05%',                form: 'Antiseptic solution',        quantity: '2 bottles (500mL)' },
+]
+
+function PsoForm({ org, onDone, prefill }) {
   const [items, setItems] = useState([{ name: '', strength: '', form: '', quantity: '' }])
   const [purpose, setPurpose] = useState('')
   const [storage, setStorage] = useState('')
-  const [pharmacy, setPharmacy] = useState({ name: '', address: '', email: '' })
+  const [pharmacy, setPharmacy] = useState({
+    name:    org.preferred_pharmacy_name    || '',
+    address: org.preferred_pharmacy_address || '',
+    email:   org.preferred_pharmacy_email   || '',
+  })
   const [validUntil, setValidUntil] = useState(new Date(Date.now() + 365 * 86400000).toISOString().slice(0, 10))
   const [busy, setBusy] = useState(false)
   const [result, setResult] = useState(null)
+  // NZF names bundle (~216 KB) backs the <datalist> autocomplete on the
+  // Medicine input. Mirrors the PrescribeModal pattern — kick on mount,
+  // bump the tick when the bundle resolves so the datalist re-renders.
+  const [, setNzfTick] = useState(0)
+  useEffect(() => {
+    if (NZF_NAMES) return
+    let cancelled = false
+    loadNzfNamesOnce().then(() => { if (!cancelled) setNzfTick(t => t + 1) }).catch(() => {})
+    return () => { cancelled = true }
+  }, [])
+
+  // When admin switches organisation, re-seed the pharmacy fields from
+  // the newly-selected org's defaults. Without this, pharmacy stays
+  // stuck on the first org's values.
+  useEffect(() => {
+    setPharmacy({
+      name:    org.preferred_pharmacy_name    || '',
+      address: org.preferred_pharmacy_address || '',
+      email:   org.preferred_pharmacy_email   || '',
+    })
+  }, [org.id, org.preferred_pharmacy_name, org.preferred_pharmacy_address, org.preferred_pharmacy_email])
+
+  // "Re-issue" from History: hydrate every field from a previous PSO row
+  // so the admin can edit any detail (or none, for a straight reorder)
+  // before firing. Fires whenever a new prefill id lands.
+  useEffect(() => {
+    if (!prefill) return
+    setItems(Array.isArray(prefill.items) && prefill.items.length ? prefill.items : [{ name: '', strength: '', form: '', quantity: '' }])
+    setPurpose(prefill.purpose || '')
+    setStorage(prefill.storage_location || '')
+    setPharmacy({
+      name:    prefill.pharmacy_name    || '',
+      address: prefill.pharmacy_address || '',
+      email:   prefill.pharmacy_email   || '',
+    })
+    // Push valid_until out a fresh year; the stored one is stale by definition.
+    setValidUntil(new Date(Date.now() + 365 * 86400000).toISOString().slice(0, 10))
+    setResult(null)
+  }, [prefill?.id])
 
   function updateItem(i, patch) { setItems(xs => xs.map((it, idx) => idx === i ? { ...it, ...patch } : it)) }
   function addItem() { setItems(xs => [...xs, { name: '', strength: '', form: '', quantity: '' }]) }
   function removeItem(i) { setItems(xs => xs.length === 1 ? xs : xs.filter((_, idx) => idx !== i)) }
+
+  function addPreset(preset) {
+    // Replace the first empty row if present, else append.
+    setItems(xs => {
+      const firstEmptyIdx = xs.findIndex(x => !x.name && !x.quantity)
+      const row = { name: preset.name, strength: preset.strength, form: preset.form, quantity: preset.quantity }
+      if (firstEmptyIdx >= 0) return xs.map((x, i) => i === firstEmptyIdx ? row : x)
+      return [...xs, row]
+    })
+  }
 
   async function issue() {
     setBusy(true); setResult(null)
@@ -197,10 +280,28 @@ function PsoForm({ org, onDone }) {
       <div style={{ fontSize: '1rem', fontWeight: 700, color: NAVY, marginBottom: '.75rem' }}>Issue PSO to {org.name}</div>
 
       <div style={{ marginBottom: '.75rem' }}>
+        <div style={{ fontSize: '.6875rem', color: '#6B7280', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.04em', marginBottom: 4 }}>Quick-add presets</div>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: '.5rem' }}>
+          {MEDICINE_PRESETS.map(p => (
+            <button key={p.label} type="button" onClick={() => addPreset(p)}
+              style={{ background: '#F0F9FA', border: '1px solid #D4EEF0', color: TEAL, borderRadius: 99, padding: '4px 10px', fontSize: '.6875rem', fontWeight: 700, cursor: 'pointer', fontFamily: FF }}>
+              + {p.label}
+            </button>
+          ))}
+        </div>
         <div style={{ fontSize: '.6875rem', color: '#6B7280', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.04em', marginBottom: 4 }}>Medicines</div>
+        {/* Datalist backs the <input list="…"> below. Presets first so they
+            get the auto-fill hint; remaining NZF entries appear as plain
+            name suggestions. Rendered once, shared across every row. */}
+        <datalist id="pso-nzf-list">
+          {MEDICINE_PRESETS.map(p => <option key={`pr-${p.label}`} value={p.name}>{p.label} — click chip above to auto-fill</option>)}
+          {(NZF_NAMES || []).filter(e => !MEDICINE_PRESETS.some(p => p.name === e.name)).map(e => (
+            <option key={`nzf-${e.name}`} value={e.name} />
+          ))}
+        </datalist>
         {items.map((it, i) => (
           <div key={i} style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1.2fr 1fr auto', gap: 4, marginBottom: 4 }}>
-            <input placeholder="Medicine" value={it.name} onChange={e => updateItem(i, { name: e.target.value })} style={{ padding: '.4rem .5rem', border: '1px solid #D1D5DB', borderRadius: 6, fontSize: '.8125rem', fontFamily: FF }} />
+            <input placeholder="Medicine (type to search NZF)" list="pso-nzf-list" value={it.name} onChange={e => updateItem(i, { name: e.target.value })} style={{ padding: '.4rem .5rem', border: '1px solid #D1D5DB', borderRadius: 6, fontSize: '.8125rem', fontFamily: FF }} />
             <input placeholder="Strength" value={it.strength} onChange={e => updateItem(i, { strength: e.target.value })} style={{ padding: '.4rem .5rem', border: '1px solid #D1D5DB', borderRadius: 6, fontSize: '.8125rem', fontFamily: FF }} />
             <input placeholder="Form (e.g. MDI)" value={it.form} onChange={e => updateItem(i, { form: e.target.value })} style={{ padding: '.4rem .5rem', border: '1px solid #D1D5DB', borderRadius: 6, fontSize: '.8125rem', fontFamily: FF }} />
             <input placeholder="Qty" value={it.quantity} onChange={e => updateItem(i, { quantity: e.target.value })} style={{ padding: '.4rem .5rem', border: '1px solid #D1D5DB', borderRadius: 6, fontSize: '.8125rem', fontFamily: FF }} />
@@ -216,10 +317,35 @@ function PsoForm({ org, onDone }) {
         placeholder="e.g. Anakiwa base medical room AND in Instructor First Aid Kits" />
 
       <div style={{ borderTop: '1px solid #E5E7EB', margin: '.75rem 0 .5rem', paddingTop: '.5rem' }}>
-        <div style={{ fontSize: '.75rem', fontWeight: 700, color: NAVY, marginBottom: '.4rem' }}>Dispensing pharmacy</div>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: '.4rem' }}>
+          <div style={{ fontSize: '.75rem', fontWeight: 700, color: NAVY }}>Dispensing pharmacy</div>
+          {org.preferred_pharmacy_name && (
+            <div style={{ fontSize: '.6875rem', color: '#6B7280', fontStyle: 'italic' }}>pre-filled from {org.name}'s default</div>
+          )}
+        </div>
         <Input label="Pharmacy name" value={pharmacy.name} onChange={v => setPharmacy(p => ({ ...p, name: v }))} required placeholder="e.g. Picton Health Care Pharmacy" />
         <Input label="Address" value={pharmacy.address} onChange={v => setPharmacy(p => ({ ...p, address: v }))} placeholder="e.g. 6 High Street, Picton 7220" />
         <Input label="Email" value={pharmacy.email} onChange={v => setPharmacy(p => ({ ...p, email: v }))} required placeholder="pharmacy@..." />
+        {/* "Save as default" only surfaces if the current values differ from
+            the org's stored defaults — reduces noise when admin hasn't
+            changed anything. Also the first time any org uses this feature. */}
+        {pharmacy.name && pharmacy.email && (
+          pharmacy.name !== (org.preferred_pharmacy_name || '') ||
+          pharmacy.address !== (org.preferred_pharmacy_address || '') ||
+          pharmacy.email !== (org.preferred_pharmacy_email || '')
+        ) && (
+          <button type="button" onClick={async () => {
+            try {
+              await apiFetch('/api/pso?action=update_org_pharmacy', {
+                method: 'POST',
+                body: JSON.stringify({ organisation_id: org.id, pharmacy_name: pharmacy.name, pharmacy_address: pharmacy.address, pharmacy_email: pharmacy.email }),
+              })
+              onDone()
+            } catch (e) { /* non-blocking */ }
+          }} style={{ background: 'none', border: 'none', color: TEAL, fontSize: '.6875rem', fontWeight: 700, cursor: 'pointer', fontFamily: FF, padding: '2px 0', textDecoration: 'underline' }}>
+            Save as default pharmacy for {org.name}
+          </button>
+        )}
       </div>
 
       <Input label="Valid until" value={validUntil} onChange={setValidUntil} placeholder="YYYY-MM-DD" />
@@ -263,10 +389,28 @@ const DEFAULT_SALBUTAMOL_SO = {
   documentation: 'Record for every administration: recipient name, date and time, clinical presentation, dose administered, response, and administrator name. Submit records to the issuing practitioner weekly or at course close, whichever is sooner. Any 111 escalation must be reported within 24 hours.',
 }
 
-function StandingOrderForm({ org, psos, onDone }) {
+function StandingOrderForm({ org, psos, onDone, prefill }) {
   const [form, setForm] = useState({ ...DEFAULT_SALBUTAMOL_SO, linked_pso_id: psos[0]?.id || '', review_date: new Date(Date.now() + 365 * 86400000).toISOString().slice(0, 10) })
   const [busy, setBusy] = useState(false)
   const [result, setResult] = useState(null)
+
+  // "Re-issue" from History: hydrate every field from a previous standing
+  // order row so the admin can tweak and reissue (or just re-stamp with a
+  // fresh review date).
+  useEffect(() => {
+    if (!prefill) return
+    setForm({
+      title:         prefill.title || '',
+      indication:    prefill.indication || '',
+      inclusion:     Array.isArray(prefill.inclusion) && prefill.inclusion.length ? prefill.inclusion : [''],
+      exclusion:     Array.isArray(prefill.exclusion) && prefill.exclusion.length ? prefill.exclusion : [''],
+      dose:          prefill.dose || '',
+      documentation: prefill.documentation || '',
+      linked_pso_id: prefill.linked_pso_id || psos[0]?.id || '',
+      review_date:   new Date(Date.now() + 365 * 86400000).toISOString().slice(0, 10),
+    })
+    setResult(null)
+  }, [prefill?.id])
 
   function updateList(field, idx, val) {
     setForm(f => ({ ...f, [field]: f[field].map((x, i) => i === idx ? val : x) }))
@@ -345,20 +489,28 @@ function ListEditor({ label, items, onChange, onAdd, onRemove }) {
   )
 }
 
-function History({ psos, sos }) {
+function History({ psos, sos, onReissuePso, onReissueSo }) {
   if (psos.length === 0 && sos.length === 0) return null
   return (
     <div style={{ marginTop: '1rem' }}>
       <div style={{ fontSize: '.75rem', fontWeight: 700, color: '#6B7280', textTransform: 'uppercase', letterSpacing: '.05em', marginBottom: '.5rem' }}>History</div>
       {psos.map(p => (
         <div key={p.id} style={{ background: 'white', border: '1px solid #E5E7EB', borderRadius: 8, padding: '.75rem 1rem', marginBottom: '.4rem', fontSize: '.8125rem' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-            <div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '.5rem' }}>
+            <div style={{ flex: 1 }}>
               <b style={{ color: NAVY }}>{p.pso_number}</b>
               <span style={{ color: '#6B7280', marginLeft: 6 }}>PSO · {(p.items || []).map(i => i.name).join(', ')}</span>
             </div>
-            <div style={{ fontSize: '.6875rem', color: p.sent_at ? '#065F46' : '#92400E' }}>
-              {p.sent_at ? `Sent ${new Date(p.sent_at).toLocaleDateString('en-NZ')}` : (p.delivery_error ? 'Email failed' : 'Not sent')}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '.5rem' }}>
+              <div style={{ fontSize: '.6875rem', color: p.sent_at ? '#065F46' : '#92400E' }}>
+                {p.sent_at ? `Sent ${new Date(p.sent_at).toLocaleDateString('en-NZ')}` : (p.delivery_error ? 'Email failed' : 'Not sent')}
+              </div>
+              {onReissuePso && (
+                <button type="button" onClick={() => onReissuePso(p)} title="Load this PSO into the form so you can edit or reorder"
+                  style={{ background: '#F0F9FA', border: '1px solid #D4EEF0', color: TEAL, borderRadius: 6, padding: '3px 8px', fontSize: '.6875rem', fontWeight: 700, cursor: 'pointer', fontFamily: FF }}>
+                  ↻ Re-issue
+                </button>
+              )}
             </div>
           </div>
           <div style={{ fontSize: '.6875rem', color: '#9CA3AF', marginTop: 2 }}>To {p.pharmacy_email} · Valid until {p.valid_until}</div>
@@ -366,13 +518,21 @@ function History({ psos, sos }) {
       ))}
       {sos.map(s => (
         <div key={s.id} style={{ background: 'white', border: '1px solid #E5E7EB', borderRadius: 8, padding: '.75rem 1rem', marginBottom: '.4rem', fontSize: '.8125rem' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-            <div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '.5rem' }}>
+            <div style={{ flex: 1 }}>
               <b style={{ color: NAVY }}>{s.so_number}</b>
               <span style={{ color: '#6B7280', marginLeft: 6 }}>Standing Order · {s.title}</span>
             </div>
-            <div style={{ fontSize: '.6875rem', color: s.sent_at ? '#065F46' : '#92400E' }}>
-              {s.sent_at ? `Sent ${new Date(s.sent_at).toLocaleDateString('en-NZ')}` : 'Saved'}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '.5rem' }}>
+              <div style={{ fontSize: '.6875rem', color: s.sent_at ? '#065F46' : '#92400E' }}>
+                {s.sent_at ? `Sent ${new Date(s.sent_at).toLocaleDateString('en-NZ')}` : 'Saved'}
+              </div>
+              {onReissueSo && (
+                <button type="button" onClick={() => onReissueSo(s)} title="Load this Standing Order into the form so you can edit or reorder"
+                  style={{ background: '#F0F9FA', border: '1px solid #D4EEF0', color: TEAL, borderRadius: 6, padding: '3px 8px', fontSize: '.6875rem', fontWeight: 700, cursor: 'pointer', fontFamily: FF }}>
+                  ↻ Re-issue
+                </button>
+              )}
             </div>
           </div>
           <div style={{ fontSize: '.6875rem', color: '#9CA3AF', marginTop: 2 }}>Review by {s.review_date}</div>
