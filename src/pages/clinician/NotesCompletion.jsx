@@ -167,12 +167,12 @@ export default function NotesCompletion() {
   const [dsFollowUp, setDsFollowUp]     = useState('')
   const [dsNotes, setDsNotes]           = useState('')
 
-  // Fee tier picked by the provider. This is the single authoritative
-  // source for payment_amount + is_acc now that the patient-side ACC
-  // question + AI keyword matcher have been removed (2026-11-24, Eilidh
-  // Jones incident). Options: $25 ACC / $65 Standard / $100 Extended /
-  // Waive ($0). Windcave auth was raised to $100 so any of these
-  // captures cleanly. Required before Finalise can fire.
+  // ACC vs Non-ACC lives at the top of the page as a big visible toggle
+  // (2026-11-24 Patrick request — "ACC vs Non-ACC at the top of the
+  // provider note page rather than some popup"). Picking ACC auto-fills
+  // feeCents to $25 and locks is_acc=true for lodgement; picking
+  // Non-ACC exposes the standard/$100 fee tiers.
+  const [accMode, setAccMode]           = useState(null)   // null | 'acc' | 'non_acc'
   const [feeCents, setFeeCents]         = useState(null)   // null | 2500 | 6500 | 10000 | 0
 
   // Note templates (SOAP + discharge). Provider-owned, cross-mode.
@@ -587,11 +587,11 @@ export default function NotesCompletion() {
           status:                  'complete',
           completed_at:            consult?.completed_at || now,
           consultation_duration_seconds: durationSec,
-          // Provider-picked fee tier is the authoritative source (2026-11-24).
-          // $25 ACC → is_acc=true for ACC lodgement. All other tiers → is_acc=false.
+          // Authoritative pricing & ACC flag come from the provider's
+          // top-of-page ACC toggle + Fee picker (2026-11-24).
           payment_amount:          feeCents,
-          is_acc:                  feeCents === 2500,
-          acc_eligible:            feeCents === 2500 ? 'yes' : 'no',
+          is_acc:                  accMode === 'acc',
+          acc_eligible:            accMode === 'acc' ? 'yes' : 'no',
           // Discharge summary — only persist if the provider filled it in.
           // Works for both ACC and non-ACC consults; ACC path also reads/
           // writes this via AccConsultWidgets, so we don't wipe if empty.
@@ -650,7 +650,9 @@ export default function NotesCompletion() {
   }
 
   // ── Derived ───────────────────────────────────────────────────────────────────
-  const isAcc       = consult?.acc_eligible === 'yes'
+  // ACC is driven by the top-of-page toggle now. Fall back to the legacy
+  // acc_eligible flag for consults created before the 2026-11-24 rework.
+  const isAcc       = accMode === 'acc' || consult?.acc_eligible === 'yes'
   const isFinalised = !!consult?.notes_finalised
   const disabled    = isFinalised
   const patientName = consult ? `${consult.patient_first_name} ${consult.patient_last_name}` : '…'
@@ -658,8 +660,18 @@ export default function NotesCompletion() {
   const providerName = sessionStorage.getItem('providerDisplayName') || 'Treating clinician'
 
   const criticalFlags = redFlags?.flags?.filter(f => f.severity === 'critical') || []
+  // ACC-specific data is required when provider classifies this as ACC —
+  // ACC45 lodgement needs mechanism + body part + ICD-10 diagnosis +
+  // Read code. Patrick 2026-11-24: "that picker will help make sure we
+  // get an ACC diagnosis from the provider and other ACC specific data".
+  const accDataComplete = accMode !== 'acc' || (
+    !!accMechanism.trim() &&
+    !!accBodyPart.trim() &&
+    !!accReadCode &&
+    !!icd10Code
+  )
   const canFinalise = !isFinalised && s1.trim().length > 0 && !!workCapacity && attested &&
-    feeCents !== null &&
+    accMode !== null && feeCents !== null && accDataComplete &&
     (criticalFlags.length === 0 || flagsAcknowledged)
 
   const progress = [
@@ -720,6 +732,53 @@ export default function NotesCompletion() {
 
         {/* Progress */}
         <ProgressDots progress={progress} />
+
+        {/* ─── ACC / Non-ACC — top-of-page classification toggle ─── */}
+        {!isFinalised && (
+          <div style={{
+            background:'white', borderRadius:14, padding:'14px 16px',
+            margin:'10px 0 1rem',
+            border:`2px solid ${accMode ? (accMode==='acc' ? '#10B981' : '#0B6E76') : '#F59E0B'}`,
+            boxShadow: accMode ? 'none' : '0 0 0 4px rgba(245, 158, 11, 0.12)',
+          }}>
+            <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', gap:12, marginBottom:10 }}>
+              <div style={{ fontSize:'.85rem', fontWeight:800, color:NAVY }}>Is this an ACC consult?</div>
+              <div style={{ fontSize:'.7rem', color: accMode ? '#6B7280' : '#D97706', fontWeight:700 }}>
+                {accMode ? (accMode === 'acc' ? '✓ ACC — $25 co-pay' : `✓ Non-ACC — $${(feeCents ?? 6500)/100} fee`) : 'Required'}
+              </div>
+            </div>
+            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8 }}>
+              <button
+                type="button"
+                onClick={() => { setAccMode('acc'); setFeeCents(2500) }}
+                style={{
+                  padding:'14px 12px', borderRadius:10, cursor:'pointer', fontFamily:FF,
+                  border: accMode === 'acc' ? '2.5px solid #10B981' : '1.5px solid #E2E8F0',
+                  background: accMode === 'acc' ? '#F0FDF4' : 'white',
+                  color: accMode === 'acc' ? '#065F46' : NAVY,
+                  fontWeight: 800, fontSize:'.95rem',
+                  display:'flex', flexDirection:'column', gap:2,
+                }}>
+                <div>⚡ ACC</div>
+                <div style={{ fontSize:'.72rem', fontWeight:600, color:'#6B7280' }}>Injury-related · $25 co-pay</div>
+              </button>
+              <button
+                type="button"
+                onClick={() => { setAccMode('non_acc'); setFeeCents(6500) }}
+                style={{
+                  padding:'14px 12px', borderRadius:10, cursor:'pointer', fontFamily:FF,
+                  border: accMode === 'non_acc' ? '2.5px solid #0B6E76' : '1.5px solid #E2E8F0',
+                  background: accMode === 'non_acc' ? '#F0F9FA' : 'white',
+                  color: accMode === 'non_acc' ? '#0B6E76' : NAVY,
+                  fontWeight: 800, fontSize:'.95rem',
+                  display:'flex', flexDirection:'column', gap:2,
+                }}>
+                <div>🩺 Non-ACC</div>
+                <div style={{ fontSize:'.72rem', fontWeight:600, color:'#6B7280' }}>Standard consult · $65+</div>
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* Patient header */}
         <div style={{ background:'white', borderRadius:14, padding:'1rem', margin:'10px 0 1rem', border:'1px solid #E2E8F0', borderTop:`4px solid ${TEAL}` }}>
@@ -1127,24 +1186,23 @@ export default function NotesCompletion() {
           </SectionCard>
         )}
 
-        {/* ─── Fee tier picker — authoritative source for payment_amount + is_acc ─── */}
-        {!isFinalised && (() => {
-          // Patient's billing country sets the auth ceiling at booking.
-          // NZ → $65 auth, so $100 Extended isn't an option (Windcave caps
-          // capture at auth). International → $100 auth, all tiers OK.
+        {/* ─── Fee picker — only surfaced for Non-ACC. ACC is a fixed $25. ─── */}
+        {!isFinalised && accMode === 'non_acc' && (() => {
+          // Patient's billing country sets the auth ceiling. NZ → $65 auth,
+          // so $100 Extended isn't an option (Windcave caps capture at auth).
+          // International → $100 auth, all tiers OK.
           const isIntl = !!consult?.patient_billing_country && consult.patient_billing_country !== 'NZ'
           const FEE_OPTIONS = [
-            { cents: 2500,  label: '$25 ACC',      sub: 'ACC co-pay' },
             { cents: 6500,  label: '$65 Standard', sub: 'Private consult' },
             ...(isIntl ? [{ cents: 10000, label: '$100 Extended', sub: 'International / complex' }] : []),
             { cents: 0,     label: 'Waive',        sub: 'No charge' },
           ]
           return (
-            <SectionCard num="F" title="Fee for this consult">
+            <SectionCard num="F" title="Non-ACC fee">
               <div style={{ fontSize:'.8rem', color:'#6B7280', marginBottom:10, lineHeight:1.5 }}>
-                You decide. Whatever you pick here is captured from the patient's $100 hold. $25 also tags the consult as ACC for later lodgement.
+                Captured from the patient's hold at Finalise.
               </div>
-              <div style={{ display:'grid', gridTemplateColumns:'repeat(2, 1fr)', gap:8 }}>
+              <div style={{ display:'grid', gridTemplateColumns:`repeat(${FEE_OPTIONS.length}, 1fr)`, gap:8 }}>
                 {FEE_OPTIONS.map(opt => {
                   const selected = feeCents === opt.cents
                   return (
@@ -1165,11 +1223,6 @@ export default function NotesCompletion() {
                   )
                 })}
               </div>
-              {feeCents === null && (
-                <div style={{ fontSize:'.78rem', color:'#D97706', background:'#FFFBEB', borderRadius:8, padding:'8px 12px', marginTop:10 }}>
-                  Required — pick a fee before you can Finalise.
-                </div>
-              )}
             </SectionCard>
           )
         })()}
@@ -1204,7 +1257,18 @@ export default function NotesCompletion() {
               {/* Validation hints */}
               {!s1.trim() && <div style={{ fontSize:'.8rem', color:'#D97706', background:'#FFFBEB', borderRadius:8, padding:'8px 12px' }}>Section 1 (Presenting History) cannot be empty</div>}
               {!workCapacity && <div style={{ fontSize:'.8rem', color:'#D97706', background:'#FFFBEB', borderRadius:8, padding:'8px 12px' }}>Work capacity must be selected</div>}
-              {feeCents === null && <div style={{ fontSize:'.8rem', color:'#D97706', background:'#FFFBEB', borderRadius:8, padding:'8px 12px' }}>Fee tier must be selected (Section F)</div>}
+              {accMode === null && <div style={{ fontSize:'.8rem', color:'#D97706', background:'#FFFBEB', borderRadius:8, padding:'8px 12px' }}>ACC vs Non-ACC must be selected (top of page)</div>}
+              {accMode === 'non_acc' && feeCents === null && <div style={{ fontSize:'.8rem', color:'#D97706', background:'#FFFBEB', borderRadius:8, padding:'8px 12px' }}>Non-ACC fee tier must be selected (Section F)</div>}
+              {accMode === 'acc' && !accDataComplete && (
+                <div style={{ fontSize:'.8rem', color:'#D97706', background:'#FFFBEB', borderRadius:8, padding:'8px 12px' }}>
+                  ACC fields incomplete — need: {[
+                    !icd10Code && 'ICD-10 diagnosis',
+                    !accReadCode && 'Read code',
+                    !accMechanism.trim() && 'Mechanism',
+                    !accBodyPart.trim() && 'Body part',
+                  ].filter(Boolean).join(', ')}
+                </div>
+              )}
 
               {attested && (
                 <button onClick={finalise} disabled={!canFinalise || finalising}
