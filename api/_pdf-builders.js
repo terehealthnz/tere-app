@@ -2403,7 +2403,7 @@ export function buildArcMonthlyReportPdf({ facility, period, consults, totals })
     // Header strip - teal brand with facility name + period
     doc.rect(0, 0, W, 90).fill('#0B6E76')
     doc.fillColor('white').font('Helvetica-Bold').fontSize(22).text('Tere Health', LEFT, 24)
-    doc.font('Helvetica').fontSize(10).text('Monthly utilisation report - Aged Residential Care', LEFT, 54)
+    doc.font('Helvetica').fontSize(10).text('Monthly invoice - Aged Residential Care', LEFT, 54)
     doc.fontSize(9).text('terehealth.co.nz  ·  HPI-O G11238-E  ·  NZBN 9429053723413', LEFT, 70)
     try {
       const logo = tereLogoBuffer()
@@ -2416,10 +2416,15 @@ export function buildArcMonthlyReportPdf({ facility, period, consults, totals })
       .text(facility?.company_name || 'Facility', LEFT, y, { width: CONTENT_W })
     y += 24
     doc.fillColor('#0B6E76').font('Helvetica-Bold').fontSize(12)
-      .text(`Reporting period: ${period?.label || ''}`, LEFT, y)
+      .text(`Invoice period: ${period?.label || ''}`, LEFT, y)
     y += 18
     doc.fillColor('#6B7280').font('Helvetica').fontSize(9)
-      .text(`Report generated ${nzDate(new Date())}`, LEFT, y)
+      .text(`Invoice generated ${nzDate(new Date())}`, LEFT, y)
+    if (period?.payableByLabel) {
+      doc.fillColor('#B45309').font('Helvetica-Bold').fontSize(10)
+        .text(`Payable by ${period.payableByLabel}`, LEFT, y + 14)
+      y += 14
+    }
     y += 24
 
     // Summary strip - 3 large numbers

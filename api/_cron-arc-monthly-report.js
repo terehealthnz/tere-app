@@ -1,8 +1,11 @@
 // Monthly ARC utilisation report cron.
 //
-// Fires at 20:00 UTC on day 7 of each month, which is 09:00 NZDT during
+// Fires at 20:00 UTC on day 1 of each month, which is 09:00 NZDT during
 // daylight saving (Oct-Apr) and 08:00 NZST otherwise - inside business
-// hours year-round. Covers the previous NZ calendar month.
+// hours year-round. Covers the previous NZ calendar month and is sent
+// as the invoice for that period, payable by the 20th of this month.
+// (Was day 7 until 2026-11-23; moved up so facilities have 19 days of
+// notice ahead of the 20th payment date, not 13.)
 //
 // Scans active ARC facilities whose delivery_status is 'ok' and calls
 // generateAndSendArcReport() for each. Facilities with zero consults in

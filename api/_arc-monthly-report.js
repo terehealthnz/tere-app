@@ -87,7 +87,21 @@ export function parseMonthPeriod(periodStr) {
   const label = startNz.toLocaleString('en-NZ', {
     timeZone: 'Pacific/Auckland', month: 'long', year: 'numeric',
   })
-  return { startIso: startNz.toISOString(), endIso: endNz.toISOString(), label }
+  // Payable-by date = 20th of the month that follows the reporting period.
+  // ARC billing model: invoice generated 1st of month after period, due
+  // by the 20th of that same generation month. Example: November consults
+  // → invoice fired 1 Dec → payable by 20 Dec.
+  const payableByNz = zonedWallTimeToUtc(nextYear, nextMonth, 20, 0, 0)
+  const payableByLabel = payableByNz.toLocaleString('en-NZ', {
+    timeZone: 'Pacific/Auckland', day: '2-digit', month: 'long', year: 'numeric',
+  })
+  return {
+    startIso: startNz.toISOString(),
+    endIso:   endNz.toISOString(),
+    label,
+    payableByIso:   payableByNz.toISOString(),
+    payableByLabel,
+  }
 }
 
 // Return the Date at a given Pacific/Auckland wall-clock time. Implemented
@@ -328,7 +342,7 @@ export async function generateAndSendArcReport({
     ? [String(facility.backup_contact_email).trim()]
     : undefined
 
-  const subject = `Tere Health - ${facility.company_name} - monthly report (${bounds.label})`
+  const subject = `Tere Health - ${facility.company_name} - invoice (${bounds.label}) - payable by ${bounds.payableByLabel}`
   const greeting = facility.clinical_contact_name
     ? `Kia ora ${facility.clinical_contact_name.split(/\s+/)[0]},`
     : 'Kia ora,'
@@ -336,14 +350,15 @@ export async function generateAndSendArcReport({
   const text = [
     greeting,
     '',
-    `Attached is the Tere Health monthly utilisation report for ${facility.company_name}, covering ${bounds.label}.`,
+    `Attached is the Tere Health monthly invoice for ${facility.company_name}, covering ${bounds.label}.`,
     '',
     `Consults completed this period: ${enriched.length}`,
     `Total (no GST):                  $${(totalCents / 100).toFixed(2)} NZD`,
+    `Payable by:                      ${bounds.payableByLabel}`,
     '',
-    'The report lists each consult by resident identifier (or initials if no facility ID is on file), date, type, and amount. No clinical detail is included - please reply to this email if you need a signed clinical summary for any resident.',
+    'The invoice lists each consult by resident identifier (or initials if no facility ID is on file), date, type, and amount. No clinical detail is included - please reply to this email if you need a signed clinical summary for any resident.',
     '',
-    'Questions, or need the report for a different month? Reply to this email or contact hello@terehealth.co.nz any time.',
+    'Questions, or need the invoice for a different month? Reply to this email or contact hello@terehealth.co.nz any time.',
     '',
     'Nga mihi,',
     'The Tere Health team',
@@ -352,13 +367,14 @@ export async function generateAndSendArcReport({
   const esc = (s) => String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
   const html = `<!DOCTYPE html><html><body style="font-family:'Helvetica Neue',Arial,sans-serif;color:#1A2A33;max-width:580px;margin:0 auto;padding:20px">
     <p>${esc(greeting)}</p>
-    <p>Attached is the Tere Health monthly utilisation report for <strong>${esc(facility.company_name)}</strong>, covering <strong>${esc(bounds.label)}</strong>.</p>
+    <p>Attached is the Tere Health monthly invoice for <strong>${esc(facility.company_name)}</strong>, covering <strong>${esc(bounds.label)}</strong>.</p>
     <table cellpadding="6" cellspacing="0" style="border-collapse:collapse;margin:14px 0;font-size:14px">
       <tr><td style="color:#6B7280">Consults completed this period</td><td><strong>${enriched.length}</strong></td></tr>
       <tr><td style="color:#6B7280">Total (no GST)</td><td><strong>$${(totalCents / 100).toFixed(2)} NZD</strong></td></tr>
+      <tr><td style="color:#6B7280">Payable by</td><td><strong>${esc(bounds.payableByLabel)}</strong></td></tr>
     </table>
-    <p>The report lists each consult by resident identifier (or initials if no facility ID is on file), date, type, and amount. No clinical detail is included - please reply to this email if you need a signed clinical summary for any resident.</p>
-    <p>Questions, or need the report for a different month? Reply to this email or contact <a href="mailto:hello@terehealth.co.nz" style="color:#0B6E76">hello@terehealth.co.nz</a> any time.</p>
+    <p>The invoice lists each consult by resident identifier (or initials if no facility ID is on file), date, type, and amount. No clinical detail is included - please reply to this email if you need a signed clinical summary for any resident.</p>
+    <p>Questions, or need the invoice for a different month? Reply to this email or contact <a href="mailto:hello@terehealth.co.nz" style="color:#0B6E76">hello@terehealth.co.nz</a> any time.</p>
     <p>Nga mihi,<br>The Tere Health team</p>
     <hr style="border:none;border-top:1px solid #E2E8F0;margin-top:24px">
     <p style="font-size:11px;color:#9CA3AF">Tere Health Limited  ·  terehealth.co.nz  ·  NZBN 9429053723413</p>

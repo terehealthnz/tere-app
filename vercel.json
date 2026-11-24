@@ -80,6 +80,6 @@
     { "path": "/api/cron-promote-stuck-drafts", "schedule": "*/5 * * * *" },
     { "path": "/api/cron-retrain-bp-v3",        "schedule": "0 14 * * *" },
     { "path": "/api/cron-thank-you-emails",     "schedule": "0 20 * * *" },
-    { "path": "/api/cron-arc-monthly-report",   "schedule": "0 20 7 * *" }
+    { "path": "/api/cron-arc-monthly-report",   "schedule": "0 20 1 * *" }
   ]
 }
