@@ -2779,43 +2779,80 @@ export default function VitalsValidateDashboard() {
           {!loading && tab === 'subjects' && (
             subjects.length === 0 ? (
               <div style={{ textAlign: 'center', color: '#6B7280', padding: '2rem' }}>No subjects yet.</div>
-            ) : (
-              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '.85rem' }}>
-                <thead>
-                  <tr>
-                    {['Code','Name','Age','Sex','Skin','HTN','DM','Share'].map(h => (
-                      <th key={h} style={{ padding: '.5rem .75rem', textAlign: 'left', borderBottom: '1px solid #F3F4F6', color: '#6B7280', fontWeight: 700 }}>{h}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {subjects.map(s => {
-                    const shareUrl = `${window.location.origin}/vitals-validate?subject=${s.subject_code}`
-                    return (
-                      <tr key={s.id} style={{ borderBottom: '1px solid #F9FAFB' }}>
-                        <td style={{ padding: '.5rem .75rem', fontWeight: 700, color: TEAL }}>{s.subject_code}</td>
-                        <td style={{ padding: '.5rem .75rem', color: NAVY }}>{s.first_name}</td>
-                        <td style={{ padding: '.5rem .75rem', color: '#6B7280' }}>{s.age ?? '—'}</td>
-                        <td style={{ padding: '.5rem .75rem', color: '#6B7280' }}>{s.sex || '—'}</td>
-                        <td style={{ padding: '.5rem .75rem' }}>
-                          {s.fitzpatrick_scale
-                            ? <div style={{ width: 20, height: 20, borderRadius: '50%', background: FITZ_COLORS[s.fitzpatrick_scale - 1] }} />
-                            : <span style={{ color: '#9CA3AF' }}>—</span>}
-                        </td>
-                        <td style={{ padding: '.5rem .75rem', color: '#6B7280' }}>{s.has_hypertension || '—'}</td>
-                        <td style={{ padding: '.5rem .75rem', color: '#6B7280' }}>{s.has_diabetes || '—'}</td>
-                        <td style={{ padding: '.5rem .75rem' }}>
-                          <button onClick={() => navigator.clipboard.writeText(shareUrl)}
-                            style={{ background: 'none', border: 'none', color: TEAL, fontWeight: 700, cursor: 'pointer', fontSize: '.8rem', padding: 0 }}>
-                            Copy
-                          </button>
-                        </td>
-                      </tr>
-                    )
-                  })}
-                </tbody>
-              </table>
-            )
+            ) : (() => {
+              // Surface the latest-scan vitals (Tere HR, cuff BP, SpO2) + scan
+              // count on each subject row. Before this, Subjects only showed
+              // demographics, so when a scan finished the row re-appeared but
+              // the numbers that were just captured never surfaced here —
+              // making it look like the scan hadn't landed. 2026-11-23.
+              const latestBySubject = new Map()
+              for (const r of readings) {
+                const prior = latestBySubject.get(r.subject_id)
+                if (!prior || new Date(r.recorded_at) > new Date(prior.recorded_at)) {
+                  latestBySubject.set(r.subject_id, r)
+                }
+              }
+              const fmtAgo = (iso) => {
+                if (!iso) return '—'
+                const secs = Math.floor((Date.now() - new Date(iso).getTime()) / 1000)
+                if (secs < 60)         return 'just now'
+                if (secs < 3600)       return `${Math.floor(secs/60)}m ago`
+                if (secs < 86400)      return `${Math.floor(secs/3600)}h ago`
+                return `${Math.floor(secs/86400)}d ago`
+              }
+              return (
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '.85rem' }}>
+                  <thead>
+                    <tr>
+                      {['Code','Name','Age','Sex','Skin','Scans','Latest vitals','Last scan','HTN','DM','Share'].map(h => (
+                        <th key={h} style={{ padding: '.5rem .75rem', textAlign: 'left', borderBottom: '1px solid #F3F4F6', color: '#6B7280', fontWeight: 700 }}>{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {subjects.map(s => {
+                      const shareUrl = `${window.location.origin}/vitals-validate?subject=${s.subject_code}`
+                      const latest = latestBySubject.get(s.id)
+                      const count  = s.reading_count ?? 0
+                      const lastAt = latest?.recorded_at || s.last_scan_at
+                      const hrStr  = latest?.tere_hr ? `${latest.tere_hr} bpm` : null
+                      const bpStr  = latest?.manual_systolic && latest?.manual_diastolic ? `BP ${latest.manual_systolic}/${latest.manual_diastolic}` : null
+                      const spStr  = latest?.tere_spo2 ? `SpO₂ ${latest.tere_spo2}%` : null
+                      const rrStr  = latest?.tere_rr   ? `RR ${latest.tere_rr}`     : null
+                      const summary = [hrStr, bpStr, spStr, rrStr].filter(Boolean).join(' · ') || (count ? 'no values captured' : '—')
+                      return (
+                        <tr
+                          key={s.id}
+                          onClick={() => { if (count) { setFilterSubject(s.subject_code); setTab('readings') } }}
+                          style={{ borderBottom: '1px solid #F9FAFB', cursor: count ? 'pointer' : 'default' }}
+                          title={count ? 'Click to see all readings for this subject' : ''}>
+                          <td style={{ padding: '.5rem .75rem', fontWeight: 700, color: TEAL }}>{s.subject_code}</td>
+                          <td style={{ padding: '.5rem .75rem', color: NAVY }}>{s.first_name}</td>
+                          <td style={{ padding: '.5rem .75rem', color: '#6B7280' }}>{s.age ?? '—'}</td>
+                          <td style={{ padding: '.5rem .75rem', color: '#6B7280' }}>{s.sex || '—'}</td>
+                          <td style={{ padding: '.5rem .75rem' }}>
+                            {s.fitzpatrick_scale
+                              ? <div style={{ width: 20, height: 20, borderRadius: '50%', background: FITZ_COLORS[s.fitzpatrick_scale - 1] }} />
+                              : <span style={{ color: '#9CA3AF' }}>—</span>}
+                          </td>
+                          <td style={{ padding: '.5rem .75rem', fontWeight: 700, color: count ? NAVY : '#9CA3AF' }}>{count}</td>
+                          <td style={{ padding: '.5rem .75rem', color: latest ? NAVY : '#9CA3AF', whiteSpace: 'nowrap' }}>{summary}</td>
+                          <td style={{ padding: '.5rem .75rem', color: '#6B7280', whiteSpace: 'nowrap' }}>{fmtAgo(lastAt)}</td>
+                          <td style={{ padding: '.5rem .75rem', color: '#6B7280' }}>{s.has_hypertension || '—'}</td>
+                          <td style={{ padding: '.5rem .75rem', color: '#6B7280' }}>{s.has_diabetes || '—'}</td>
+                          <td style={{ padding: '.5rem .75rem' }}>
+                            <button onClick={e => { e.stopPropagation(); navigator.clipboard.writeText(shareUrl) }}
+                              style={{ background: 'none', border: 'none', color: TEAL, fontWeight: 700, cursor: 'pointer', fontSize: '.8rem', padding: 0 }}>
+                              Copy
+                            </button>
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              )
+            })()
           )}
 
           {!loading && tab === 'chart' && <HRChart readings={readings} />}
