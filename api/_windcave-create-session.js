@@ -90,19 +90,14 @@ export default async function handler(req, res) {
   //     Persisted as payment_amount and used as the intended settle at
   //     capture time. If ACC is confirmed at Finalise, capture = $25 and
   //     Windcave releases the $40 hold delta automatically (5-7 days).
-  // 2026-11-24: always auth at the highest tier ($100 international) for
-  // clinical consults so the provider can later pick any fee tier up to
-  // $100 ($25 ACC / $65 Standard / $100 Extended / Waive) at Finalise
-  // without hitting the Windcave "capture > auth" rejection. Patient
-  // sees "up to $100 hold" on the HPP, final charge is whatever the
-  // provider picks. Collapses the "patient picks ACC → AI picks ACC →
-  // $25 locked" pipeline that lost Melanie's + Eilidh's differentials.
-  // Message consults stay on their native auth tier (never above $40).
+  // Auth ceiling matches the patient's nationality:
+  //   NZ residents  → $65 hold (max tier NZ can be charged)
+  //   International → $100 hold (allows $100 Extended tier at close)
+  // The provider's Fee picker at Finalise is capped to the auth tier,
+  // so NZ patients see $25/$65/Waive only (no $100 option).
   const authTier    = isIntl ? 'international' : 'private'
   const displayTier = isIntl ? 'international' : (isAcc && type !== 'message' ? 'acc' : 'private')
-  const authAmountRaw    = (type === 'message')
-    ? (PRICES.message[authTier])
-    : (PRICES[type] || PRICES.consult).international  // $100 ceiling for consult/video/phone
+  const authAmountRaw    = (PRICES[type] || PRICES.consult)[authTier]
   const displayAmountRaw = (PRICES[type] || PRICES.consult)[displayTier]
   const discountCents    = Math.max(0, Math.min(Number(couponDiscount || 0) * 100, displayAmountRaw - 100))
   // Auth ignores coupon (couldn't verify pre-auth). Display honours it.

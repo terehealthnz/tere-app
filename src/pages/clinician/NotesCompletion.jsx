@@ -1129,10 +1129,14 @@ export default function NotesCompletion() {
 
         {/* ─── Fee tier picker — authoritative source for payment_amount + is_acc ─── */}
         {!isFinalised && (() => {
+          // Patient's billing country sets the auth ceiling at booking.
+          // NZ → $65 auth, so $100 Extended isn't an option (Windcave caps
+          // capture at auth). International → $100 auth, all tiers OK.
+          const isIntl = !!consult?.patient_billing_country && consult.patient_billing_country !== 'NZ'
           const FEE_OPTIONS = [
             { cents: 2500,  label: '$25 ACC',      sub: 'ACC co-pay' },
             { cents: 6500,  label: '$65 Standard', sub: 'Private consult' },
-            { cents: 10000, label: '$100 Extended',sub: 'Longer / complex' },
+            ...(isIntl ? [{ cents: 10000, label: '$100 Extended', sub: 'International / complex' }] : []),
             { cents: 0,     label: 'Waive',        sub: 'No charge' },
           ]
           return (
