@@ -195,6 +195,14 @@ export default async function handler(req, res) {
           payment_captured_at:           new Date().toISOString(),
           payment_captured_amount_cents: effectiveAmountCents,
           payment_captured_txn_id:       capturedTxnId,
+          // Flip the enum too. Prior to this (Patrick 2026-11-24, 2nd
+          // lost-money incident), capture-payment stamped the timestamp
+          // but left payment_status='authorised'. That left rows looking
+          // "pending" in every downstream filter (payroll, reconciliation,
+          // "ready to pay out") even though Windcave had actually drawn
+          // the money. See also _capture-consult.js which already does
+          // this correctly.
+          payment_status:                'captured',
         })
         .eq('id', consultationId)
     } catch (e) {

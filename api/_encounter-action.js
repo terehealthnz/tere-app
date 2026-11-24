@@ -56,12 +56,34 @@ export default async function handler(req, res) {
   const supabase = admin()
   const { data: consult, error: getErr } = await supabase
     .from('consultations')
-    .select('id, status, call_attempts, no_answer_count, last_seen_at, patient_id, patient_phone, provider_id')
+    .select('id, status, call_attempts, no_answer_count, last_seen_at, patient_id, patient_phone, provider_id, is_acc, acc_eligible, acc_provider_confirmed_at, acc_provider_declined_at, acc_converted_by_provider')
     .eq('id', id)
     .eq('is_practice', practice)
     .maybeSingle()
   if (getErr) { console.error('[encounter-action] getErr failed:', getErr); return res.status(500).json({ error: 'Server error' }) }
   if (!consult) return res.status(404).json({ error: 'Consultation not found' })
+
+  // SERVER-SIDE ACC GATE — Patrick 2026-11-24, 2nd lost-money incident.
+  // If the consult is flagged ACC (from patient triage) and the provider
+  // hasn't explicitly confirmed OR declined, refuse complete_encounter.
+  // The client AccConfirmModal is helpful but dismissable in edge cases
+  // (window close, nav away, UI race). This is the belt that stops a
+  // closed-and-forgotten consult from locking Tere into the $25 ACC
+  // co-pay rate when the provider meant to charge $65 non-ACC. The
+  // client error message tells the provider exactly how to unblock.
+  if (action === 'complete_encounter' && !practice) {
+    const flaggedAcc = consult.is_acc === true || consult.acc_eligible === 'yes'
+    const alreadyDecided = !!consult.acc_provider_confirmed_at
+                        || !!consult.acc_provider_declined_at
+                        || !!consult.acc_converted_by_provider
+    if (flaggedAcc && !alreadyDecided) {
+      return res.status(409).json({
+        error: 'ACC decision required before completing this encounter.',
+        code: 'ACC_UNDECIDED',
+        hint: 'Open the chart, hit the "Not ACC — reclassify" (or confirm ACC) button, answer the popup, then try Complete Encounter again. This gate exists because closed-without-decision consults bill at the $25 ACC co-pay rate even when the visit wasn\'t injury-related.',
+      })
+    }
+  }
 
   // Ownership check — provider can action their own consult, admins and
   // supervisors can action any (covering shift, escalation). Unclaimed

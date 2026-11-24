@@ -871,6 +871,51 @@ export default async function handler(req, res) {
       if (!owns) return res.status(403).json({ error: 'Not authorised for this consultation.' })
     }
 
+    // SERVER-SIDE ACC GATE — Patrick 2026-11-24, 2nd lost-money incident.
+    // If this PATCH is attempting to close an ACC-flagged consult (either
+    // flipping status→'complete' OR stamping notes_finalised_at) without
+    // the provider having first explicitly confirmed/declined the ACC
+    // flag, refuse. Prior to this gate the NotesCompletion "Finalise &
+    // Submit" path PATCHed {status:'complete', is_acc: acc_eligible === 'yes'}
+    // directly, locking the consult at the $25 ACC co-pay even when the
+    // provider meant to charge $65 non-ACC. Eilidh Jones 2026-11-24 hit
+    // this; Melanie's otitis externa consult earlier hit it too. Belt-and-
+    // braces with the client gate in AccConfirmModal — the client modal
+    // handles the happy path; this stops the row from ever reaching
+    // complete+ACC+undecided.
+    const isClosingPatch = (patch.status === 'complete') || !!patch.notes_finalised_at
+    if (isClosingPatch && !practice) {
+      const { data: preAcc, error: preAccErr } = await supabase
+        .from('consultations')
+        .select('is_acc, acc_eligible, acc_provider_confirmed_at, acc_provider_declined_at, acc_converted_by_provider')
+        .eq('id', id)
+        .maybeSingle()
+      if (preAccErr) { console.error('[consultations] acc gate fetch failed:', preAccErr); return res.status(500).json({ error: 'Server error' }) }
+      if (preAcc) {
+        // Apply in-flight PATCH values first so a provider flipping
+        // is_acc=false in the same request bypasses the gate cleanly.
+        const resolvedIsAcc      = 'is_acc'      in patch ? patch.is_acc      : preAcc.is_acc
+        const resolvedEligible   = 'acc_eligible' in patch ? patch.acc_eligible : preAcc.acc_eligible
+        const flaggedAcc         = resolvedIsAcc === true || resolvedEligible === 'yes'
+        const alreadyDecided     = !!preAcc.acc_provider_confirmed_at
+                                || !!preAcc.acc_provider_declined_at
+                                || !!preAcc.acc_converted_by_provider
+                                // In-flight ACC decision counts too (the
+                                // ConvertToAcc / AccConfirmModal handlers
+                                // may PATCH these in the same submit).
+                                || !!patch.acc_provider_confirmed_at
+                                || !!patch.acc_provider_declined_at
+                                || !!patch.acc_converted_by_provider
+        if (flaggedAcc && !alreadyDecided) {
+          return res.status(409).json({
+            error: 'ACC decision required before closing this consultation.',
+            code: 'ACC_UNDECIDED',
+            hint: 'On the chart, hit the "Not ACC — reclassify" (or confirm ACC) button and answer the popup. This blocks closing-without-deciding so the consult can\'t get locked at the $25 ACC rate when the visit wasn\'t injury-related.',
+          })
+        }
+      }
+    }
+
     // Payment-amount ceiling guard (Windcave capture ≤ auth rule).
     // Windcave silently rejects a Complete/capture that exceeds the
     // original auth amount, so any provider action that would raise
