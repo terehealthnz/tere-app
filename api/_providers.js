@@ -178,6 +178,9 @@ const UPDATE_ALLOWLIST = new Set([
   'scope_of_clinical_practice',
   // On-call SMS ping opt-in + destination number (2026-09-30).
   'mobile_phone', 'sms_on_call',
+  // Admin-assigned overnight ARC shift flag (2026-11-28). Separate from
+  // sms_on_call so daytime self-opt-in can't leak into 3am pager.
+  'sms_on_call_overnight',
 ])
 
 // Subset of UPDATE_ALLOWLIST that a provider can edit on their OWN row via

@@ -121,9 +121,16 @@ export async function notifyOnCallProviders({ consultationId, source = 'unknown'
 
     const cutoffIso = new Date(Date.now() - 10 * 60 * 1000).toISOString()
 
+    // ARC after-hours uses a SEPARATE opt-in column (admin-assigned,
+    // not provider self-service) so the daytime queue-ping rota can't
+    // leak into the 3am pager. Incident 2026-11-27 23:43 NZT fired to
+    // 4 providers because the old filter used sms_on_call for both
+    // shifts. New column sms_on_call_overnight default false, set by
+    // admin in the Edit Provider modal.
+    const filterCol = isArcOvernight ? 'sms_on_call_overnight' : 'sms_on_call'
     const { data: providers, error: provErr } = await supabase.from('providers')
       .select('id, first_name, mobile_phone, sms_on_call_last_sent_at')
-      .eq('sms_on_call', true)
+      .eq(filterCol, true)
       .eq('is_active', true)
       .not('mobile_phone', 'is', null)
     if (provErr) {

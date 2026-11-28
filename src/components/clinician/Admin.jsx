@@ -2397,6 +2397,9 @@ function EditProviderModal({ provider, onClose, onSaved }) {
     signature_url: provider.signature_url || '',
     // Onboarding gate — YYYY-MM-DD for the date input. Blank means no gate.
     patient_access_from: provider.patient_access_from ? String(provider.patient_access_from).slice(0, 10) : '',
+    // Overnight ARC on-call shift — admin-only flag. Separate from the
+    // self-service sms_on_call daytime toggle (ProviderApp top-nav).
+    sms_on_call_overnight: !!provider.sms_on_call_overnight,
   })
   const [submitting, setSubmitting] = React.useState(false)
   const [error, setError] = React.useState(null)
@@ -2529,6 +2532,19 @@ function EditProviderModal({ provider, onClose, onSaved }) {
                 </div>
                 <div><div style={labelStyle}>ACC provider number</div><input value={form.acc_provider_number} onChange={e => set('acc_provider_number', e.target.value)} style={inputStyle} /></div>
               </div>
+            </div>
+          )}
+
+          {form.is_provider && (
+            <div style={sectionStyle}>
+              <div style={sectionTitle}>On-call shifts</div>
+              <div style={{ fontSize:'.75rem', color:'#6B7280', marginBottom:'.75rem', lineHeight:1.5 }}>
+                Daytime queue SMS (08:00-20:00 NZT) is a self-service toggle in the provider's top nav. The overnight shift below is <strong>admin-controlled</strong> — tick only providers rostered to take ARC after-hours calls (20:00-08:00 NZT, aged_care facilities). They'll receive both an SMS and a wake-up phone call.
+              </div>
+              <label style={pill(form.sms_on_call_overnight)}>
+                <input type="checkbox" checked={form.sms_on_call_overnight} onChange={e => set('sms_on_call_overnight', e.target.checked)} />
+                <span style={{ fontSize:'.875rem' }}>🌙 Overnight ARC on-call (20:00-08:00 NZT)</span>
+              </label>
             </div>
           )}
 
