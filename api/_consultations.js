@@ -887,7 +887,7 @@ export default async function handler(req, res) {
     if (isClosingPatch && !practice) {
       const { data: preAcc, error: preAccErr } = await supabase
         .from('consultations')
-        .select('is_acc, acc_eligible, acc_provider_confirmed_at, acc_provider_declined_at, acc_converted_by_provider')
+        .select('is_acc, acc_eligible, acc_provider_confirmed_at, acc_provider_declined_at, acc_converted_by_provider, employer_id, created_at')
         .eq('id', id)
         .maybeSingle()
       if (preAccErr) { console.error('[consultations] acc gate fetch failed:', preAccErr); return res.status(500).json({ error: 'Server error' }) }
@@ -912,6 +912,37 @@ export default async function handler(req, res) {
             code: 'ACC_UNDECIDED',
             hint: 'On the chart, hit the "Not ACC — reclassify" (or confirm ACC) button and answer the popup. This blocks closing-without-deciding so the consult can\'t get locked at the $25 ACC rate when the visit wasn\'t injury-related.',
           })
+        }
+
+        // ARC after-hours server-authoritative pricing — if the consult
+        // was from an aged_care facility AND created between 20:00-08:00
+        // NZT AND the provider is closing it as Non-ACC, force
+        // payment_amount = $125 regardless of what the client sent.
+        // Facility is billed monthly via the MOU; no Windcave capture
+        // path. Belt-and-braces against stale clients / tampered patches.
+        // ACC consults (resolvedIsAcc===true) stay at the ACC co-pay the
+        // provider picked — ACC takes precedence over after-hours.
+        if (!flaggedAcc && preAcc.employer_id && preAcc.created_at) {
+          try {
+            const { data: emp } = await supabase
+              .from('employers')
+              .select('org_type')
+              .eq('id', preAcc.employer_id)
+              .maybeSingle()
+            if (emp?.org_type === 'aged_care') {
+              const hour = Number(
+                new Intl.DateTimeFormat('en-NZ', {
+                  hour: 'numeric', hour12: false, timeZone: 'Pacific/Auckland',
+                }).format(new Date(preAcc.created_at))
+              )
+              const isArcOvernight = hour >= 20 || hour < 8
+              if (isArcOvernight) {
+                patch.payment_amount = 12500
+              }
+            }
+          } catch (e) {
+            console.error('[consultations] arc-overnight clamp failed (non-fatal):', e)
+          }
         }
       }
     }

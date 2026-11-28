@@ -173,7 +173,7 @@ export default function NotesCompletion() {
   // feeCents to $25 and locks is_acc=true for lodgement; picking
   // Non-ACC exposes the standard/$100 fee tiers.
   const [accMode, setAccMode]           = useState(null)   // null | 'acc' | 'non_acc'
-  const [feeCents, setFeeCents]         = useState(null)   // null | 2500 | 6500 | 10000 | 0
+  const [feeCents, setFeeCents]         = useState(null)   // null | 2500 | 6500 | 10000 | 12500 | 0
 
   // Note templates (SOAP + discharge). Provider-owned, cross-mode.
   const [noteTemplates, setNoteTemplates]           = useState([])
@@ -660,6 +660,25 @@ export default function NotesCompletion() {
   const providerName = sessionStorage.getItem('providerDisplayName') || 'Treating clinician'
 
   const criticalFlags = redFlags?.flags?.filter(f => f.severity === 'critical') || []
+
+  // ARC after-hours ($125 flat, facility-paid via monthly MOU invoice) —
+  // auto-triggered when the consult is from an aged_care employer AND
+  // started between 20:00-08:00 NZT. Overrides the standard Non-ACC fee
+  // picker to show a single locked $125 tier. ACC consults for ARC
+  // residents still get $25 co-pay (ACC takes precedence over after-hours).
+  const isArcOvernight = (() => {
+    if (consult?.employer_org_type !== 'aged_care') return false
+    if (!consult?.created_at) return false
+    try {
+      const hour = Number(
+        new Intl.DateTimeFormat('en-NZ', {
+          hour: 'numeric', hour12: false, timeZone: 'Pacific/Auckland',
+        }).format(new Date(consult.created_at))
+      )
+      return hour >= 20 || hour < 8
+    } catch { return false }
+  })()
+
   // ACC-specific data is required when provider classifies this as ACC —
   // ACC45 lodgement needs mechanism + body part + ICD-10 diagnosis +
   // Read code. Patrick 2026-11-24: "that picker will help make sure we
@@ -764,7 +783,7 @@ export default function NotesCompletion() {
               </button>
               <button
                 type="button"
-                onClick={() => { setAccMode('non_acc'); setFeeCents(6500) }}
+                onClick={() => { setAccMode('non_acc'); setFeeCents(isArcOvernight ? 12500 : 6500) }}
                 style={{
                   padding:'14px 12px', borderRadius:10, cursor:'pointer', fontFamily:FF,
                   border: accMode === 'non_acc' ? '2.5px solid #0B6E76' : '1.5px solid #E2E8F0',
@@ -774,7 +793,9 @@ export default function NotesCompletion() {
                   display:'flex', flexDirection:'column', gap:2,
                 }}>
                 <div>🩺 Non-ACC</div>
-                <div style={{ fontSize:'.72rem', fontWeight:600, color:'#6B7280' }}>Standard consult · $65+</div>
+                <div style={{ fontSize:'.72rem', fontWeight:600, color:'#6B7280' }}>
+                  {isArcOvernight ? 'ARC after-hours · $125' : 'Standard consult · $65+'}
+                </div>
               </button>
             </div>
           </div>
@@ -1188,19 +1209,26 @@ export default function NotesCompletion() {
 
         {/* ─── Fee picker — only surfaced for Non-ACC. ACC is a fixed $25. ─── */}
         {!isFinalised && accMode === 'non_acc' && (() => {
-          // Patient's billing country sets the auth ceiling. NZ → $65 auth,
-          // so $100 Extended isn't an option (Windcave caps capture at auth).
-          // International → $100 auth, all tiers OK.
+          // ARC overnight (aged_care employer + 20:00-08:00 NZT) is a
+          // single locked $125 tier billed to the facility via the
+          // monthly MOU invoice — no Windcave capture, no choice.
+          // Patient's billing country sets the auth ceiling otherwise.
+          // NZ → $65 auth, so $100 Extended isn't an option (Windcave
+          // caps capture at auth). International → $100 auth, all tiers OK.
           const isIntl = !!consult?.patient_billing_country && consult.patient_billing_country !== 'NZ'
-          const FEE_OPTIONS = [
-            { cents: 6500,  label: '$65 Standard', sub: 'Private consult' },
-            ...(isIntl ? [{ cents: 10000, label: '$100 Extended', sub: 'International / complex' }] : []),
-            { cents: 0,     label: 'Waive',        sub: 'No charge' },
-          ]
+          const FEE_OPTIONS = isArcOvernight
+            ? [{ cents: 12500, label: '$125 ARC After-hours', sub: 'Rest home · 20:00-08:00 NZT · facility-paid' }]
+            : [
+                { cents: 6500,  label: '$65 Standard', sub: 'Private consult' },
+                ...(isIntl ? [{ cents: 10000, label: '$100 Extended', sub: 'International / complex' }] : []),
+                { cents: 0,     label: 'Waive',        sub: 'No charge' },
+              ]
           return (
-            <SectionCard num="F" title="Non-ACC fee">
+            <SectionCard num="F" title={isArcOvernight ? 'ARC after-hours fee' : 'Non-ACC fee'}>
               <div style={{ fontSize:'.8rem', color:'#6B7280', marginBottom:10, lineHeight:1.5 }}>
-                Captured from the patient's hold at Finalise.
+                {isArcOvernight
+                  ? 'Billed to the facility on the next monthly invoice under the ARC MOU.'
+                  : 'Captured from the patient\'s hold at Finalise.'}
               </div>
               <div style={{ display:'grid', gridTemplateColumns:`repeat(${FEE_OPTIONS.length}, 1fr)`, gap:8 }}>
                 {FEE_OPTIONS.map(opt => {

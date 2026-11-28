@@ -63,21 +63,43 @@ export async function notifyOnCallProviders({ consultationId, source = 'unknown'
     if (!consultationId) return
     await trace(supabase, consultationId, 'enter', { source })
 
-    if (!isInClinicHoursNZT()) {
-      await trace(supabase, consultationId, 'bail', { source, reason: 'outside_clinic_hours' })
-      console.warn('[notify-on-call] skipped — outside clinic hours 08:00-20:00 NZT', { consultationId })
-      return
-    }
-
     // Practice consults are ALLOWED to fire this notification. Body contains
     // no PHI (just "new patient in queue" + provider URL), and providers need
     // to be able to verify their own on-call SMS wiring using a test consult.
+    // Also pull employer_id so we can detect ARC after-hours and bypass the
+    // clinic-hours gate for rest-home facility calls (Patrick is on call
+    // overnight for aged_care consults).
     const { data: consult } = await supabase.from('consultations')
-      .select('id, is_practice')
+      .select('id, is_practice, employer_id, created_at')
       .eq('id', consultationId)
       .maybeSingle()
     if (!consult) {
       await trace(supabase, consultationId, 'bail', { source, reason: 'consult_not_found' })
+      return
+    }
+
+    // ARC after-hours detection — aged_care facility consult started
+    // between 20:00-08:00 NZT. These bypass the clinic-hours gate so
+    // the overnight provider gets paged at 3am.
+    let isArcOvernight = false
+    if (consult.employer_id && consult.created_at) {
+      try {
+        const { data: emp } = await supabase.from('employers')
+          .select('org_type').eq('id', consult.employer_id).maybeSingle()
+        if (emp?.org_type === 'aged_care') {
+          const hour = Number(
+            new Intl.DateTimeFormat('en-NZ', {
+              hour: 'numeric', hour12: false, timeZone: 'Pacific/Auckland',
+            }).format(new Date(consult.created_at))
+          )
+          isArcOvernight = hour >= 20 || hour < 8
+        }
+      } catch { /* non-fatal */ }
+    }
+
+    if (!isInClinicHoursNZT() && !isArcOvernight) {
+      await trace(supabase, consultationId, 'bail', { source, reason: 'outside_clinic_hours' })
+      console.warn('[notify-on-call] skipped — outside clinic hours 08:00-20:00 NZT', { consultationId })
       return
     }
 
@@ -127,8 +149,12 @@ export async function notifyOnCallProviders({ consultationId, source = 'unknown'
     }
 
     // URL-free body — NZ carriers (esp 2degrees) silently drop SMS with
-    // links from unregistered sender IDs as spam.
-    const body = 'Tere: new patient in the queue. Open your dashboard to see them.'
+    // links from unregistered sender IDs as spam. ARC after-hours gets a
+    // distinct body so Patrick knows to pick up the overnight pager at 3am
+    // vs a routine daytime queue entry.
+    const body = isArcOvernight
+      ? 'Tere ARC after-hours: rest home has a resident waiting. Open your dashboard.'
+      : 'Tere: new patient in the queue. Open your dashboard to see them.'
     const nowIso = new Date().toISOString()
 
     const results = await Promise.allSettled(eligible.map(async p => {
@@ -141,12 +167,44 @@ export async function notifyOnCallProviders({ consultationId, source = 'unknown'
     const sent = results.filter(r => r.status === 'fulfilled').map(r => r.value)
     const failed = results.filter(r => r.status === 'rejected').map(r => r.reason?.message || String(r.reason))
 
+    // ARC after-hours wake-up phone call. Fires alongside the SMS so a
+    // ringing phone wakes Patrick at 3am even if iMessage is silenced.
+    // Atomic claim on consultations.on_call_voice_called_at means only
+    // one call fires per 2-min window — the cron sweep will re-dial if
+    // the consult is still unclaimed after that.
+    let voiceCalls = []
+    if (isArcOvernight) {
+      const voiceCutoffIso = new Date(Date.now() - 2 * 60 * 1000).toISOString()
+      const { data: voiceClaim } = await supabase.from('consultations')
+        .update({ on_call_voice_called_at: new Date().toISOString() })
+        .eq('id', consultationId)
+        .or(`on_call_voice_called_at.is.null,on_call_voice_called_at.lt.${voiceCutoffIso}`)
+        .select('id')
+        .maybeSingle()
+      if (voiceClaim) {
+        const { placeWakeUpCall } = await import('./_telnyx-voice.js')
+        const callResults = await Promise.allSettled(eligible.map(async p => {
+          const r = await placeWakeUpCall({
+            to: p.mobile_phone,
+            messageText: 'Tere after-hours call. A rest home resident is waiting. Open your dashboard.',
+            consultationId,
+          })
+          if (!r.ok) throw new Error(r.error || 'unknown voice error')
+          return { providerId: p.id, callControlId: r.callControlId }
+        }))
+        voiceCalls = callResults.map(r => r.status === 'fulfilled' ? r.value : { error: r.reason?.message })
+      } else {
+        voiceCalls = [{ skipped: 'already_called_within_2min' }]
+      }
+    }
+
     await trace(supabase, consultationId, 'sent', {
       source,
       sent_count: sent.length,
       failed_count: failed.length,
       sent_to: sent,
       failures: failed.length > 0 ? failed : undefined,
+      voice_calls: voiceCalls.length > 0 ? voiceCalls : undefined,
     })
   } catch (err) {
     await trace(supabase, consultationId, 'fatal', { source, err: err?.message || String(err) })

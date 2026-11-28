@@ -406,6 +406,7 @@ const ROUTES = {
   'cron-pho-reminders':        () => import('./_cron-pho-reminders.js'),
   'pso':                       () => import('./_pso.js'),
   'notify-on-call-trigger':    () => import('./_notify-on-call-trigger.js'),
+  'voice-webhook':             () => import('./_voice-webhook.js'),
   'consult-heartbeat':         () => import('./_consult-heartbeat.js'),
   'cron-compliance-expiry':    () => import('./_cron-compliance-expiry.js'),
   'cron-results-reconciliation': () => import('./_cron-results-reconciliation.js'),

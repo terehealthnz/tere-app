@@ -698,16 +698,26 @@ export function buildPayslipPdf(data) {
         .text(label, 66, y + yOff)
         .text(value, W - 160, y + yOff, { width: 110, align: 'right' })
     }
-    row(`${data.consultation_count} consultations × $${rate.toFixed(2)}`, `$${totalEx.toFixed(2)}`, false, 34)
-    if (hasGst) {
-      row('GST @ 15%', `$${gst.toFixed(2)}`, false, 54)
-      doc.moveTo(66, y + 76).lineTo(W - 66, y + 76).strokeColor('#B0D4D8').lineWidth(0.5).stroke()
-      row('Total (GST inclusive)', `$${totalIncl.toFixed(2)}`, true, 86)
-      y += boxH + 16
+    // Mixed-rate: show base + ARC after-hours on separate lines if both present.
+    const arcCount = Number(data.arc_overnight_count || 0)
+    const arcRate  = Number(data.arc_overnight_rate  || 0)
+    const baseCount = Number(data.consultation_count || 0) - arcCount
+    if (arcCount > 0) {
+      row(`${baseCount} consultations × $${rate.toFixed(2)}`, `$${(baseCount * rate).toFixed(2)}`, false, 34)
+      row(`${arcCount} ARC after-hours × $${arcRate.toFixed(2)}`, `$${(arcCount * arcRate).toFixed(2)}`, false, 48)
     } else {
-      doc.moveTo(66, y + 54).lineTo(W - 66, y + 54).strokeColor('#B0D4D8').lineWidth(0.5).stroke()
-      row('Total', `$${totalEx.toFixed(2)}`, true, 62)
-      y += boxH + 16
+      row(`${data.consultation_count} consultations × $${rate.toFixed(2)}`, `$${totalEx.toFixed(2)}`, false, 34)
+    }
+    const breakdownOffset = arcCount > 0 ? 14 : 0
+    if (hasGst) {
+      row('GST @ 15%', `$${gst.toFixed(2)}`, false, 54 + breakdownOffset)
+      doc.moveTo(66, y + 76 + breakdownOffset).lineTo(W - 66, y + 76 + breakdownOffset).strokeColor('#B0D4D8').lineWidth(0.5).stroke()
+      row('Total (GST inclusive)', `$${totalIncl.toFixed(2)}`, true, 86 + breakdownOffset)
+      y += boxH + 16 + breakdownOffset
+    } else {
+      doc.moveTo(66, y + 54 + breakdownOffset).lineTo(W - 66, y + 54 + breakdownOffset).strokeColor('#B0D4D8').lineWidth(0.5).stroke()
+      row('Total', `$${totalEx.toFixed(2)}`, true, 62 + breakdownOffset)
+      y += boxH + 16 + breakdownOffset
     }
 
     // Per-consultation breakdown table
@@ -744,11 +754,14 @@ export function buildPayslipPdf(data) {
         const initials = `${(c.patient_first_name || '').charAt(0)}${(c.patient_last_name || '').charAt(0)}.`
         const typeKey = c.consultation_type || 'video'
         const type = typeKey.charAt(0).toUpperCase() + typeKey.slice(1)
+        // Use per-consult amount when provided (ARC after-hours gets its own
+        // rate); fall back to the provider base_rate.
+        const perConsult = Number(c.per_consult_amount ?? rate)
         doc.fillColor('#374151').font('Helvetica').fontSize(8)
           .text(dateStr + (isOverride ? ' *' : ''), 58, y + 4)
           .text(type, 150, y + 4)
           .text(initials, 230, y + 4)
-          .text(`$${rate.toFixed(2)}${isOverride ? ' *' : ''}`, W - 100, y + 4, { width: 46, align: 'right' })
+          .text(`$${perConsult.toFixed(2)}${isOverride ? ' *' : ''}`, W - 100, y + 4, { width: 46, align: 'right' })
         y += 16
       }
 

@@ -14,6 +14,24 @@ import { sendEmail , hasEmailProvider} from './_email-client.js'
 
 const FALLBACK_RATE = 25.00   // used only if a provider row has null base_rate
 
+// ARC after-hours — flat per-consult rate paid to the provider on top of
+// their base_rate. Triggered when the consult is from an aged_care employer
+// AND created between 20:00-08:00 NZT. Overrides base_rate for that consult.
+const ARC_OVERNIGHT_RATE = 65.00
+
+function isArcOvernightConsult(consult, agedCareEmployerIds) {
+  if (!consult?.employer_id || !consult?.created_at) return false
+  if (!agedCareEmployerIds.has(String(consult.employer_id))) return false
+  try {
+    const hour = Number(
+      new Intl.DateTimeFormat('en-NZ', {
+        hour: 'numeric', hour12: false, timeZone: 'Pacific/Auckland',
+      }).format(new Date(consult.created_at))
+    )
+    return hour >= 20 || hour < 8
+  } catch { return false }
+}
+
 // Every payroll endpoint reads sensitive pay data. Non-admin callers may
 // only see their OWN provider_id — anything else is a 403. Admin callers
 // (billing_admin included) get full visibility.
@@ -56,7 +74,9 @@ async function buildSummaries(supabase, period_start, period_end) {
     // (or an explicit admin override). "Completed" alone is not enough — a
     // provider could hit Complete Encounter without writing notes; we
     // shouldn't pay for that unless admin force-includes with a reason.
-    supabase.from('consultations').select('provider_id,notes_finalised_at,encounter_completed_at,payroll_override_at').eq('status', 'complete').not('provider_id', 'is', null)
+    // employer_id + created_at pulled so we can detect ARC after-hours
+    // and swap in ARC_OVERNIGHT_RATE for those consults.
+    supabase.from('consultations').select('provider_id,notes_finalised_at,encounter_completed_at,payroll_override_at,employer_id,created_at').eq('status', 'complete').not('provider_id', 'is', null)
       .eq('payment_test_mode', false)
       .eq('is_practice', false)
       .gte('created_at', period_start + 'T00:00:00.000Z')
@@ -64,16 +84,35 @@ async function buildSummaries(supabase, period_start, period_end) {
     supabase.from('payroll_periods').select('*').eq('period_start', period_start).eq('period_end', period_end),
   ])
 
+  // Resolve aged_care employer_ids once per period so per-consult rate
+  // decisions don't need a round-trip each.
+  const periodEmployerIds = Array.from(new Set((consultations || [])
+    .map(c => c.employer_id).filter(Boolean).map(String)))
+  const agedCareEmployerIds = new Set()
+  if (periodEmployerIds.length) {
+    const { data: emps } = await supabase
+      .from('employers').select('id,org_type').in('id', periodEmployerIds)
+    for (const e of emps || []) {
+      if (e.org_type === 'aged_care') agedCareEmployerIds.add(String(e.id))
+    }
+  }
+
   // Notes-signed gate — count consults where either notes_finalised_at
   // OR encounter_completed_at is populated, OR an explicit admin override
   // was recorded (payroll_override_at). Consults with none of the three are
   // excluded from payable (surfaced in review modal with red "✗ notes not
   // signed — excluded" so admin knows why the count differs).
-  const countMap = {}
+  // Per-consult counters — split ARC after-hours out so total = base_count *
+  // base_rate + arc_count * ARC_OVERNIGHT_RATE (mixed-rate add up right).
+  const countMap   = {}
+  const arcOvernightCountMap = {}
   for (const c of consultations || []) {
     const signed = !!(c.notes_finalised_at || c.encounter_completed_at || c.payroll_override_at)
     if (!signed) continue
     countMap[c.provider_id] = (countMap[c.provider_id] || 0) + 1
+    if (isArcOvernightConsult(c, agedCareEmployerIds)) {
+      arcOvernightCountMap[c.provider_id] = (arcOvernightCountMap[c.provider_id] || 0) + 1
+    }
   }
   const savedMap = {}
   for (const r of payrollRows || []) savedMap[r.provider_id] = r
@@ -82,7 +121,11 @@ async function buildSummaries(supabase, period_start, period_end) {
     const count = countMap[p.id] || 0
     const rate  = Number(p.base_rate ?? FALLBACK_RATE)
     const saved = savedMap[p.id]
-    const total = parseFloat((count * rate).toFixed(2))
+    // Mixed-rate total: ARC overnight consults bill ARC_OVERNIGHT_RATE,
+    // everything else bills base_rate. rate_count * rate + arcCount * ARC.
+    const arcCount  = arcOvernightCountMap[p.id] || 0
+    const baseCount = count - arcCount
+    const total = parseFloat((baseCount * rate + arcCount * ARC_OVERNIGHT_RATE).toFixed(2))
     // Tere covers GST for GST-registered contractors — additional 15% on
     // top of the base fee (see Ian Mallett query 2026-09-20; TripleO model).
     // If a saved payroll row already has a frozen gst_amount, prefer that
@@ -512,7 +555,7 @@ export default async function handler(req, res) {
       const [{ data: prov }, { data: consultations }, { data: savedRow }] = await Promise.all([
         supabase.from('providers').select('first_name,last_name,credential,email,base_rate,gst_registered,gst_number').eq('id', pid).single(),
         supabase.from('consultations')
-          .select('id,created_at,patient_first_name,patient_last_name,consultation_type,acc_eligible,notes_finalised_at,encounter_completed_at,payroll_override_at,payroll_override_reason')
+          .select('id,created_at,patient_first_name,patient_last_name,consultation_type,acc_eligible,notes_finalised_at,encounter_completed_at,payroll_override_at,payroll_override_reason,employer_id')
           .eq('status', 'complete').eq('provider_id', pid).eq('payment_test_mode', false).eq('is_practice', false)
           .gte('created_at', ps + 'T00:00:00.000Z').lte('created_at', pe + 'T23:59:59.999Z')
           .order('created_at'),
@@ -522,7 +565,21 @@ export default async function handler(req, res) {
       const rows  = consultations || []
       const count = rows.length
       const rate  = Number(prov?.base_rate ?? FALLBACK_RATE)
-      const total = parseFloat((count * rate).toFixed(2))
+      // ARC after-hours — resolve aged_care employer ids, then split count.
+      const employerIds = Array.from(new Set(rows.map(r => r.employer_id).filter(Boolean).map(String)))
+      const agedCareIds = new Set()
+      if (employerIds.length) {
+        const { data: emps } = await supabase.from('employers').select('id,org_type').in('id', employerIds)
+        for (const e of emps || []) if (e.org_type === 'aged_care') agedCareIds.add(String(e.id))
+      }
+      let arcCount = 0
+      for (const r of rows) {
+        const isArc = isArcOvernightConsult(r, agedCareIds)
+        r.per_consult_amount = isArc ? ARC_OVERNIGHT_RATE : rate
+        if (isArc) arcCount++
+      }
+      const baseCount = count - arcCount
+      const total = parseFloat((baseCount * rate + arcCount * ARC_OVERNIGHT_RATE).toFixed(2))
       // Prefer the frozen gst_amount on the saved payroll row; fall back to
       // live provider status if this is an ad-hoc payslip request.
       const gstAmount = savedRow?.gst_amount != null
@@ -535,6 +592,8 @@ export default async function handler(req, res) {
         provider: prov, period_start: ps, period_end: pe,
         consultations: rows,
         consultation_count: count, base_rate: rate,
+        arc_overnight_count: arcCount,
+        arc_overnight_rate:  ARC_OVERNIGHT_RATE,
         total_amount:   total,
         gst_amount:     gstAmount,
         gst_number:     prov?.gst_number || null,
